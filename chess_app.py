@@ -5,18 +5,30 @@ import chess.svg
 import chess.engine
 import io
 import shutil
+import os  # Critical for checking file paths
 
 # --- Configuration ---
-# Check system path first, then check specific Linux paths common on Streamlit Cloud
-STOCKFISH_PATH = shutil.which("stockfish")
+st.set_page_config(page_title="Chess Analyzer", layout="wide")
 
-if not STOCKFISH_PATH:
-    # Common fallback for Debian/Ubuntu (Streamlit Cloud)
-    possible_paths = ["/usr/games/stockfish", "/usr/bin/stockfish"]
-    for path in possible_paths:
-        if os.path.exists(path):
-            STOCKFISH_PATH = path
-            break
+# 1. Define the specific location where Streamlit Cloud installs Stockfish
+game_path = "/usr/games/stockfish"
+
+# 2. Logic to find the engine
+if os.path.exists(game_path):
+    STOCKFISH_PATH = game_path
+else:
+    # Fallback for local testing (Mac/Windows)
+    STOCKFISH_PATH = shutil.which("stockfish")
+
+st.title("♟️ Chess PGN Analyzer")
+
+# --- DEBUG SECTION (Remove this later if you want) ---
+# This will show you exactly what is happening on the server
+if STOCKFISH_PATH:
+    st.success(f"Engine found at: {STOCKFISH_PATH}")
+else:
+    st.error(f"Engine still not found. Checked: {game_path}")
+# ----------------------------------------------------
 
 # --- Sidebar ---
 with st.sidebar:
