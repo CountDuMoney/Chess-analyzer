@@ -6,21 +6,12 @@ import chess.engine
 import io
 import shutil
 import os
-import time
 from datetime import datetime
 
-# --- Library Check ---
-# We try to import the NEW drag-and-drop library: streamlit-chess
-try:
-    from streamlit_chess import st_chess
-    HAS_INTERACTIVE_BOARD = True
-except ImportError:
-    HAS_INTERACTIVE_BOARD = False
-
 # --- Configuration & Styling ---
-st.set_page_config(page_title="Chess Coach V5.1", layout="wide")
+st.set_page_config(page_title="Chess Coach V6.0", layout="wide")
 
-# 1. Find Stockfish
+# 1. Find Stockfish (Robust Path Finding)
 game_path = "/usr/games/stockfish"
 if os.path.exists(game_path):
     STOCKFISH_PATH = game_path
@@ -117,7 +108,7 @@ def make_engine_move(board, skill_level):
 
 # --- Sidebar ---
 with st.sidebar:
-    st.title("♟️ Chess Coach V5.1")
+    st.title("♟️ Chess Coach V6.0")
     
     mode = st.radio("App Mode", ["Analysis", "Play vs Stockfish"], 
                     key="mode_selection", 
@@ -239,17 +230,13 @@ if st.session_state.app_mode == "Analysis":
 
 
 elif st.session_state.app_mode == "Play vs Stockfish":
-    # ---------------- PLAY MODE ----------------
+    # ---------------- PLAY MODE (Reliable) ----------------
     if st.session_state.play_board is None:
         st.session_state.play_board = chess.Board()
     
     board = st.session_state.play_board
     
     st.markdown("### Playing vs Stockfish")
-    
-    # Check Library Availability
-    if not HAS_INTERACTIVE_BOARD:
-        st.warning("⚠️ Drag & Drop library (`streamlit-chess`) not installed or failed to load. Using fallback mode.")
     
     c1, c2 = st.columns([2, 1])
     
@@ -261,42 +248,14 @@ elif st.session_state.app_mode == "Play vs Stockfish":
                 make_engine_move(board, skill)
                 st.rerun()
 
-        # 2. Render Board
-        if HAS_INTERACTIVE_BOARD:
-            # --- INTERACTIVE MODE (streamlit-chess) ---
-            current_fen = board.fen()
-            
-            # st_chess takes the FEN and returns the new FEN after user move
-            # Note: We can try to pass 'key' to maintain state
-            new_fen = st_chess(current_fen, key="chess_board")
-            
-            if new_fen and new_fen != current_fen:
-                # Logic to find which move matched the new FEN
-                found_move = None
-                for move in board.legal_moves:
-                    board.push(move)
-                    if board.fen() == new_fen:
-                        found_move = move
-                        board.pop() 
-                        break
-                    board.pop()
-                
-                if found_move:
-                    board.push(found_move)
-                    st.session_state.play_game_history.append(found_move)
-                    st.rerun()
-                else:
-                    # If FEN is valid but not a legal move from current state, reload
-                    st.rerun()
-        else:
-            # --- FALLBACK MODE (Static Image) ---
-            orientation = chess.BLACK if user_side == "Black" else chess.WHITE
-            board_svg = chess.svg.board(board, size=500, orientation=orientation)
-            st.image(board_svg)
+        # 2. Render Board (Static SVG)
+        orientation = chess.BLACK if user_side == "Black" else chess.WHITE
+        board_svg = chess.svg.board(board, size=500, orientation=orientation)
+        st.image(board_svg)
     
     with c2:
-        # 3. Handle User Move (Fallback Dropdown)
-        if not HAS_INTERACTIVE_BOARD and not board.is_game_over():
+        # 3. Handle User Move (Crash-Proof Dropdown)
+        if not board.is_game_over():
             legal_moves = [board.san(m) for m in board.legal_moves]
             legal_moves.sort()
             
@@ -309,8 +268,7 @@ elif st.session_state.app_mode == "Play vs Stockfish":
                     board.push_san(user_move)
                     st.session_state.play_game_history.append(board.peek())
                     st.rerun()
-        
-        if board.is_game_over():
+        else:
             st.success(f"Game Over! Result: {board.result()}")
         
         if st.button("Undo Move"):
