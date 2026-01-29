@@ -7,12 +7,16 @@ import io
 import shutil
 
 # --- Configuration ---
-# This checks if stockfish is installed in the system path (which packages.txt does)
+# Check system path first, then check specific Linux paths common on Streamlit Cloud
 STOCKFISH_PATH = shutil.which("stockfish")
 
-st.set_page_config(page_title="Chess Analyzer", layout="wide")
-
-st.title("♟️ Chess PGN Analyzer")
+if not STOCKFISH_PATH:
+    # Common fallback for Debian/Ubuntu (Streamlit Cloud)
+    possible_paths = ["/usr/games/stockfish", "/usr/bin/stockfish"]
+    for path in possible_paths:
+        if os.path.exists(path):
+            STOCKFISH_PATH = path
+            break
 
 # --- Sidebar ---
 with st.sidebar:
