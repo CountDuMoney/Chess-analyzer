@@ -9,15 +9,8 @@ import os
 import time
 from datetime import datetime
 
-# --- Import the interactive board ---
-try:
-    from streamlit_chessboard import chessboard
-except ImportError:
-    st.error("⚠️ Library missing: Please add 'streamlit-chessboard' to your requirements.txt file.")
-    st.stop()
-
 # --- Configuration & Styling ---
-st.set_page_config(page_title="Chess Coach V4.0", layout="wide")
+st.set_page_config(page_title="Chess Coach V4.1", layout="wide")
 
 # 1. Find Stockfish
 game_path = "/usr/games/stockfish"
@@ -117,7 +110,7 @@ def make_engine_move(board, skill_level):
 
 # --- Sidebar ---
 with st.sidebar:
-    st.title("♟️ Chess Coach V4.0")
+    st.title("♟️ Chess Coach V4.1")
     
     mode = st.radio("App Mode", ["Analysis", "Play vs Stockfish"], 
                     key="mode_selection", 
@@ -152,7 +145,7 @@ with st.sidebar:
 # --- Main Logic ---
 
 if st.session_state.app_mode == "Analysis":
-    # ---------------- ANALYSIS MODE (Static Images) ----------------
+    # ---------------- ANALYSIS MODE ----------------
     if 'pgn_source' in locals() and pgn_source:
         try:
             game = chess.pgn.read_game(pgn_source)
@@ -230,6 +223,7 @@ if st.session_state.app_mode == "Analysis":
                         st.metric("Eval", f"{score:.2f}")
 
                 with col_board:
+                    # SVG Board (Static but reliable)
                     board_svg = chess.svg.board(
                         display_board, 
                         size=500,
@@ -239,7 +233,7 @@ if st.session_state.app_mode == "Analysis":
 
 
 elif st.session_state.app_mode == "Play vs Stockfish":
-    # ---------------- PLAY MODE (Interactive Drag & Drop) ----------------
+    # ---------------- PLAY MODE (Reliable Dropdown Version) ----------------
     if st.session_state.play_board is None:
         st.session_state.play_board = chess.Board()
     
@@ -257,47 +251,34 @@ elif st.session_state.app_mode == "Play vs Stockfish":
                 make_engine_move(board, skill)
                 st.rerun()
 
-        # 2. Interactive Board
-        # This component returns the FEN of the board after the user moves
-        # We check if the FEN has changed to detect a move
-        current_fen = board.fen()
-        board_orientation = "white" if user_side == "White" else "black"
-        
-        # Render the interactive board
-        new_fen = chessboard(current_fen, orientation=board_orientation, key="play_board_component")
-        
-        # 3. Handle User Move
-        if new_fen and new_fen != current_fen:
-            # The component returned a new FEN, meaning the user moved pieces on the screen.
-            # We need to find WHICH move resulted in this FEN to update our python object correctly.
-            found_move = None
-            for move in board.legal_moves:
-                board.push(move)
-                if board.fen() == new_fen:
-                    found_move = move
-                    board.pop() # Restore state to push cleanly below
-                    break
-                board.pop()
-            
-            if found_move:
-                board.push(found_move)
-                st.session_state.play_game_history.append(found_move)
-                st.rerun() # Rerun to trigger engine response
-            else:
-                # If FEN changed but it wasn't a legal move (bug or weird state), reload
-                st.warning("Invalid move detected. Reseting board.")
-                st.rerun()
-
+        # 2. Render Board (Static SVG)
+        # Flip if user is Black
+        orientation = chess.BLACK if user_side == "Black" else chess.WHITE
+        board_svg = chess.svg.board(board, size=500, orientation=orientation)
+        st.image(board_svg)
+    
     with c2:
-        st.write(f"**Turn:** {'White' if board.turn == chess.WHITE else 'Black'}")
-        
-        if board.is_game_over():
+        # 3. Handle User Move (Robust Dropdown)
+        if not board.is_game_over():
+            legal_moves = [board.san(m) for m in board.legal_moves]
+            legal_moves.sort()
+            
+            with st.form("move_form"):
+                st.subheader("Your Move")
+                user_move = st.selectbox("Select move:", [""] + legal_moves)
+                submit = st.form_submit_button("Make Move")
+                
+                if submit and user_move:
+                    board.push_san(user_move)
+                    st.session_state.play_game_history.append(board.peek())
+                    st.rerun()
+        else:
             st.success(f"Game Over! Result: {board.result()}")
         
         if st.button("Undo Move"):
             if len(board.move_stack) > 1:
-                board.pop() # Undo Engine
-                board.pop() # Undo Player
+                board.pop() 
+                board.pop()
             elif len(board.move_stack) == 1:
                 board.pop()
             st.rerun()
